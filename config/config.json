@@ -24,6 +24,7 @@
     "pixelScale":{
         "pixelsPerSprite":16,
         "spritesheetWindow":1,
+        "spritesheetWindowMax":4,
         "drawWindow":32
     },
     "gridColour":{

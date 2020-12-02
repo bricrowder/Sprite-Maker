@@ -1,6 +1,14 @@
 --[[]
--- tools: brush (b), eraser (e) (100% transparent), zoom slider (-,+, mouse wheel?), save, quit
--- tools: animation
+tools: brush (b), eraser (e) (100% transparent), zoom slider (-,+, mouse wheel?), save, quit
+tools: animation
+
+copy, cut, paste
+
+checkered transparent background
+
+colour picker
+
+
 
 ]]
 
@@ -16,93 +24,116 @@ function love.load()
     -- global control vars
     mode = config.mode.draw
 
-    -- global canvases
-    ssCanvas = love.graphics.newCanvas(config.spritesheetWindow.width,config.spritesheetWindow.width)
+    -- global canvases: CanvasBake = 1x spritesheet, Canvas = max scale spritesheet
+    ssCanvasBake = love.graphics.newCanvas(config.spritesheetWindow.width,config.spritesheetWindow.height)
+    ssCanvas = love.graphics.newCanvas(config.spritesheetWindow.width * config.pixelScale.spritesheetWindowMax,config.spritesheetWindow.height * config.pixelScale.spritesheetWindowMax)
 
     -- global modifier key states
     SHIFT = false
     MOUSE = false
+    CTRL = false
 
     -- load pixel data
     pixels = json.opendecode(config.spritesheet.pixelData)
 
-    -- pixels = {}
-    -- for i=1, config.spritesheetWindow.width do
-    --     pixels[i] = {}
-    --     for j=1, config.spritesheetWindow.height do
-    --         -- draw
-    --         pixels[i][j] = 2
-    --     end
-    -- end
+    if not pixels then
+        pixels = {}
+        for i=1, config.spritesheetWindow.width do
+            pixels[i] = {}
+            for j=1, config.spritesheetWindow.height do
+                -- draw
+                pixels[i][j] = 2
+            end
+        end
+    end
 
-    -- initial baking of canvas
-    bakePixels()
-
-    -- global tracking
+    -- grid selection tracking
     ssSelection = {
         start = {gx=1, gy=1},
         fin = {gx=1, gy=1}
     }
 
-    -- global draw canvas pixels, init to black palette
+
+    -- global draw canvas pixels, init to transparent
     drawPixels = {}
     for i=1, config.pixelScale.pixelsPerSprite do
         drawPixels[i] = {}
         for j=1, config.pixelScale.pixelsPerSprite do
-            drawPixels[i][j] = 2
+            drawPixels[i][j] = 1
         end
     end
 
     -- currently selected palette colour
     colour = 3
 
-    -- temp
+    -- spritesheet position, min and max pos
     sx = 0
     sy = 0
-    -- sxMin = -config.spritesheetWindow.width * config.pixelScale.spritesheetWindow
-    -- syMin = -config.spritesheetWindow.height * config.pixelScale.spritesheetWindow
-    -- sxMax = 0
-    -- syMax = 0
+    sxMin = -config.spritesheetWindow.width * config.pixelScale.spritesheetWindow + config.spritesheetWindow.width
+    syMin = -config.spritesheetWindow.height * config.pixelScale.spritesheetWindow + config.spritesheetWindow.height
+    sxMax = 0
+    syMax = 0
 
+    -- copy/paste table
+    copyPixels = {}
+
+    -- global status text
     statusText = "na"
 end
 
 function love.update(dt)
     -- get mouse position
     local mx, my = love.mouse.getPosition()
+    -- offset coords if sheet has been "moved", minus it because sx,sy is < 1
+    local tx = mx - sx
+    local ty = my - sy
+
     -- get mode/window
     local window = getWindow(mx, my)
     -- get window grid position (if applicable)
-    local gx, gy = getGrid(window, mx, my)
-    -- get window button (if applicable)
+
+    -- get grid pos' based on actual and offset mouse pos
+    local dx, dy = getGrid(window, mx, my)
+    local gx, gy = getGrid(window, tx, ty)
 
     -- get modifier key states
     resetKeyStates()
     if love.keyboard.isDown("rshift", "lshift") then
         SHIFT = true
     end
+    if love.keyboard.isDown("rctrl", "lctrl") then
+        CTRL = true
+    end
+    -- get mouse clicks
     if love.mouse.isDown(1, 2) then
         MOUSE = true
 
-        if window == "spritesheetWindow" then
+        if window == "spritesheetWindow" and not SHIFT then
+            -- set end of selection box while you are holding mouse btn down
             ssSelection.fin.gx = gx
             ssSelection.fin.gy = gy
         elseif window == "drawWindow" then        
             -- only set if it is a different colour
-            if not(drawPixels[gx][gy] == colour) then
-                setPixel(gx, gy, colour)
+            if not(drawPixels[dx][dy] == colour) then
+                setPixel(dx, dy, colour)
             end
         end
 
     end
 
-    -- process input based on mode/window
-    statusText = window .. ": ".. mx .. "," .. my
+    -- bake changes
+    bakePixels()
+
+    -- update status text with various positions and actions
+    statusText = window .. ": ".. mx .. "," .. my .. "   Modified: " .. tx .. "," .. ty
     if gx and gy then
         statusText = statusText .. "\n " .. gx .. "," .. gy
     end
     if SHIFT then
         statusText = statusText .. "\nSHIFT"
+    end
+    if CTRL then
+        statusText = statusText .. "\nCTRL"
     end
     if MOUSE then
         statusText = statusText .. "\nMOUSE"
@@ -110,28 +141,28 @@ function love.update(dt)
 end
 
 function love.mousemoved(x, y, dx, dy)
-    -- if getWindow(x, y) == "spritesheetWindow" then
-    --     if MOUSE and SHIFT then
-    --         sx = sx + dx
-    --         sy = sy + dy
-    --         if sx < sxMin then
-    --             sx = sxMin
-    --         elseif sx > sxMax then
-    --             sx = sxMax
-    --         end
-    --         if sy < syMin then
-    --             sy = syMin
-    --         elseif sy > syMax then
-    --             sy = syMax
-    --         end            
-    --     end
-    -- end
+    if getWindow(x, y) == "spritesheetWindow" then
+        if MOUSE and SHIFT then
+            sx = sx + dx
+            sy = sy + dy
+            if sx < sxMin then
+                sx = sxMin
+            elseif sx > sxMax then
+                sx = sxMax
+            end
+            if sy < syMin then
+                sy = syMin
+            elseif sy > syMax then
+                sy = syMax
+            end          
+        end
+    end
 end
 
 function love.mousepressed(x, y, button, isTouch, presses)
     local window = getWindow(x, y)
-    local gx, gy = getGrid(window, x, y)
-    if window == "spritesheetWindow" then
+    local gx, gy = getGrid(window, x-sx, y-sy)
+    if window == "spritesheetWindow" and not SHIFT then
         -- reset selection
         ssSelection.start.gx = gx
         ssSelection.start.gy = gy
@@ -144,8 +175,8 @@ end
 
 function love.mousereleased(x, y, button, isTouch, presses)
     local window = getWindow(x, y)
-    if window == "spritesheetWindow" then
-        local gx, gy = getGrid(window, x, y)
+    if window == "spritesheetWindow" and not SHIFT then
+        local gx, gy = getGrid(window, x-sx, y-sy)
         ssSelection.fin.gx = gx
         ssSelection.fin.gy = gy
 
@@ -164,21 +195,30 @@ function love.keyreleased(key)
         writeImage()
     end
     if key=="right" then
-        if config.pixelScale.spritesheetWindow < 16 then
+        if config.pixelScale.spritesheetWindow < config.pixelScale.spritesheetWindowMax  then
             config.pixelScale.spritesheetWindow = config.pixelScale.spritesheetWindow * 2
+            sxMin = -config.spritesheetWindow.width * config.pixelScale.spritesheetWindow + config.spritesheetWindow.width
+            syMin = -config.spritesheetWindow.height * config.pixelScale.spritesheetWindow + config.spritesheetWindow.height
+            print(sxMin .. "," .. syMin)
         end
     end
     if key=="left" then
         if config.pixelScale.spritesheetWindow > 1 then
             config.pixelScale.spritesheetWindow = config.pixelScale.spritesheetWindow / 2
+            sxMin = -config.spritesheetWindow.width * config.pixelScale.spritesheetWindow + config.spritesheetWindow.width
+            syMin = -config.spritesheetWindow.height * config.pixelScale.spritesheetWindow + config.spritesheetWindow.height
+            print(sxMin .. "," .. syMin)
         end
+    end
+    if key=="c" and CTRL then
+        copySelectedPixels()
     end
 end
 
 function love.draw()
     love.graphics.stencil(spritesheetWindowStencil, "replace", 1)
     love.graphics.setStencilTest("greater", 0)
-    love.graphics.draw(ssCanvas, config.spritesheetWindow.x + sx, config.spritesheetWindow.y + sy, 0, config.pixelScale.spritesheetWindow)
+    love.graphics.draw(ssCanvas, config.spritesheetWindow.x + sx, config.spritesheetWindow.y + sy)
     love.graphics.setStencilTest()
     
     drawDrawWindow()
@@ -189,17 +229,6 @@ function love.draw()
     love.graphics.rectangle("line",config.statusWindow.x, config.statusWindow.y, config.statusWindow.width, config.statusWindow.height)
 
     drawGrid("drawWindow")
-    drawGrid("spritesheetWindow")
-
-    if ssSelection.start.gx and ssSelection.fin.gx then
-        local x = (ssSelection.start.gx-1) * config.pixelScale.pixelsPerSprite * config.pixelScale.spritesheetWindow
-        local w = ssSelection.fin.gx * config.pixelScale.pixelsPerSprite * config.pixelScale.spritesheetWindow - x
-        local y = (ssSelection.start.gy-1) * config.pixelScale.pixelsPerSprite * config.pixelScale.spritesheetWindow
-        local h = ssSelection.fin.gy * config.pixelScale.pixelsPerSprite * config.pixelScale.spritesheetWindow - y
-        love.graphics.rectangle("line",x,y,w,h)
-    end
-
-
 
     love.graphics.print(statusText,config.statusWindow.x, config.statusWindow.y)
     love.graphics.print(sx .. "," .. sy, 10, 10)
@@ -234,7 +263,7 @@ function getGrid(window, x, y)
         lx = x - config.drawWindow.x
         ly = y - config.drawWindow.y
     elseif window == "spritesheetWindow" then
-        -- pixelScale will determine how much of the 1024x1024 is shown with the 
+        -- make sure you consider the spritesheet scale!
         s = config.pixelScale.pixelsPerSprite * config.pixelScale.spritesheetWindow
         lx = x - config.spritesheetWindow.x
         ly = y - config.spritesheetWindow.y
@@ -281,12 +310,12 @@ function drawGrid(window)
             config.gridColour.spritesheetWindow[4],
         }
         s = config.pixelScale.pixelsPerSprite * config.pixelScale.spritesheetWindow
-        lw = config.spritesheetWindow.width / s
-        lh = config.spritesheetWindow.height / s
+        lw = config.spritesheetWindow.width * config.pixelScale.spritesheetWindow / s
+        lh = config.spritesheetWindow.height * config.pixelScale.spritesheetWindow / s
         xo = config.spritesheetWindow.x
-        xw = config.spritesheetWindow.x + config.spritesheetWindow.width
+        xw = config.spritesheetWindow.x + config.spritesheetWindow.width* config.pixelScale.spritesheetWindow
         yo = config.spritesheetWindow.y
-        yh = config.spritesheetWindow.y + config.spritesheetWindow.height
+        yh = config.spritesheetWindow.y + config.spritesheetWindow.height* config.pixelScale.spritesheetWindow
     elseif window == "mapWindow" then
 
     end
@@ -315,9 +344,7 @@ function setPixel(dx, dy, c)
     local sx = (ssSelection.start.gx-1) * config.pixelScale.pixelsPerSprite + dx
     local sy = (ssSelection.start.gy-1) * config.pixelScale.pixelsPerSprite + dy
     pixels[sx][sy] = c
-    bakePixels()
 end
-
 
 function getPixels(gx, gy)
     local iStart = (gx-1) * config.pixelScale.pixelsPerSprite+1
@@ -339,8 +366,50 @@ function getPixels(gx, gy)
     end
 end
 
+function copySelectedPixels()
+    local w, h, x, y = 0, 0, 0, 0
+    if ssSelection.fin.gx >= ssSelection.start.gx then
+        x = (ssSelection.start.gx-1) * config.pixelScale.pixelsPerSprite +1
+        y = (ssSelection.start.gy-1) * config.pixelScale.pixelsPerSprite +1
+        w = x + (ssSelection.fin.gx-ssSelection.start.gx+1) * config.pixelScale.pixelsPerSprite -1
+        h = y + (ssSelection.fin.gy-ssSelection.start.gy+1) * config.pixelScale.pixelsPerSprite -1
+    else
+        x = (ssSelection.fin.gx-1) * config.pixelScale.pixelsPerSprite +1
+        y = (ssSelection.fin.gy-1) * config.pixelScale.pixelsPerSprite +1
+        w = x + (ssSelection.start.gx-ssSelection.fin.gx+1) * config.pixelScale.pixelsPerSprite -1
+        h = y + (ssSelection.start.gy-ssSelection.fin.gy+1) * config.pixelScale.pixelsPerSprite -1
+    end
+
+    -- reset!
+    copyPixels = {}
+    -- copy!
+    local ci = 1
+    local cj = 1
+    for i=x, w do
+        copyPixels[ci] = {}
+        cj = 1
+        for j=y, h do
+            copyPixels[ci][cj] = pixels[i][j]
+            cj = cj + 1
+        end
+        ci = ci + 1
+    end
+    print("x: " .. x .. "\ny: " .. y .. "\nw: " .. w .. "\nh: " .. h)
+    print("Copied " .. #copyPixels .. " x " .. #copyPixels[1])
+end
+
+function pastePixels(gx1, gy1, gx2, gy2)
+
+end
+
+function deletePixels(gx1, gy1, gx2, gy2)
+
+end
+
+
+
 function bakePixels()
-    love.graphics.setCanvas(ssCanvas)
+    love.graphics.setCanvas(ssCanvasBake)
     for i=1, #pixels do
         for j=1, #pixels[i] do            
             love.graphics.setColor(config.palette[pixels[i][j]])
@@ -348,6 +417,18 @@ function bakePixels()
         end
     end
     love.graphics.setColor(1,1,1,1)
+    love.graphics.setCanvas(ssCanvas)
+    love.graphics.draw(ssCanvasBake, 0, 0, 0, config.pixelScale.spritesheetWindow)
+    drawGrid("spritesheetWindow")
+
+    if ssSelection.start.gx and ssSelection.fin.gx then
+        local x = (ssSelection.start.gx-1) * config.pixelScale.pixelsPerSprite * config.pixelScale.spritesheetWindow
+        local w = ssSelection.fin.gx * config.pixelScale.pixelsPerSprite * config.pixelScale.spritesheetWindow - x
+        local y = (ssSelection.start.gy-1) * config.pixelScale.pixelsPerSprite * config.pixelScale.spritesheetWindow
+        local h = ssSelection.fin.gy * config.pixelScale.pixelsPerSprite * config.pixelScale.spritesheetWindow - y
+        love.graphics.rectangle("line",x,y,w,h)
+    end
+
     love.graphics.setCanvas()
 end
 
@@ -363,6 +444,7 @@ end
 
 function resetKeyStates()
     SHIFT = false
+    CTRL = false
     MOUSE = false
 end
 

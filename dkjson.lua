@@ -715,7 +715,7 @@ end
 --
 function json.opendecode(jsonfile)
     -- open and pull the data from the file
-    local jsonstring, jsonsize = love.filesystem.read(jsonfile)
+    local jsonstring, jsonsize = assert(love.filesystem.read(jsonfile))
     -- setup the decoding fields
     local jsondata, jsonpos, jsonerr
 
