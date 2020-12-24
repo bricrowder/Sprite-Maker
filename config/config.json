@@ -1,21 +1,21 @@
 {
     "palette":[
-        [0,0,0,0],
-        [0,0,0,1],
-        [1,1,1,1],
-        [1,1,0,1],
-        [1,0,0,1],
-        [0,1,0,1],
-        [0,0,1,1],
-        [0,1,1,1],
-        [1,0,1,1],
-        [1,0.5,0,1],
-        [0,1,0.5,1],
-        [0.5,1,0,1],
-        [0.5,1,0.5,1],
-        [1,0.5,1,1],
-        [0.5,0.5,1,1],
-        [1,1,0.5,1]
+        {"colour":[0,0,0,0]},
+        {"colour":[0,0,0,1]},
+        {"colour":[1,1,1,1]},
+        {"colour":[1,1,0,1]},
+        {"colour":[1,0,0,1]},
+        {"colour":[0,1,0,1]},
+        {"colour":[0,0,1,1]},
+        {"colour":[0,1,1,1]},
+        {"colour":[1,0,1,1]},
+        {"colour":[1,0.5,0,1]},
+        {"colour":[0,1,0.5,1]},
+        {"colour":[0.5,1,0,1]},
+        {"colour":[0.5,1,0.5,1]},
+        {"colour":[1,0.5,1,1]},
+        {"colour":[0.5,0.5,1,1]},
+        {"colour":[1,1,0.5,1]}
     ],
     "mode":{
         "map":0,
@@ -46,8 +46,14 @@
     "toolWindow":{
         "x":1024,
         "y":0,
-        "width":576,
-        "height":836
+        "width":64,
+        "height":512
+    },
+    "colourWindow":{
+        "x":1088,
+        "y":0,
+        "width":128,
+        "height":512
     },
     "statusWindow":{
         "x":0,
@@ -64,5 +70,51 @@
     "spritesheet":{
         "filename":"spritesheet.png",
         "pixelData":"pixeldata.json"
-    }
+    },
+    "selection":{
+        "highlightColour":[0,0.8,0,1],
+        "copyColour":[0.5,0.5,1.0,0.5]
+    },
+    "buttonConfig":{
+        "borderColour":[0.5,0.5,0.5,1.0],
+        "borderColourHighlight":[1,1,1,1],
+        "size":32,
+        "padding":{
+            "x":16,
+            "y":16
+        }
+    },
+    "transparentBg":{
+        "colour1":[0.3,0.3,0.3,1.0],
+        "colour2":[0.7,0.7,0.7,1.0],
+        "size":512,
+        "scale":64
+    },
+    "buttons":[
+        {
+            "text":"Copy",
+            "icon":"assets/copyicon.png",
+            "hoverColour":[0,1.0,0,1]
+        },
+        {
+            "text":"Cut",
+            "icon":"assets/cuticon.png",
+            "hoverColour":[0.75,1.0,0,1]
+        },
+        {            
+            "text":"Paste",
+            "icon":"assets/pasteicon.png",
+            "hoverColour":[0.5,1.0,0,1]
+        },
+        {            
+            "text":"Delete",
+            "icon":"assets/deleteicon.png",
+            "hoverColour":[1.0,0,0,1]
+        },
+        {            
+            "text":"Save",
+            "icon":"assets/saveicon.png",
+            "hoverColour":[1.0,0.75,0,1]
+        }        
+    ]
 }
