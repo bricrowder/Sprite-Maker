@@ -29,25 +29,25 @@
     },
     "gridColour":{
         "drawWindow":[0.2,0.2,0.2,1.0],
-        "spritesheetWindow":[0.5,0.5,0.5,1.0]
+        "spritesheetWindow":[0.2,0.2,0.2,1.0]
     },
     "drawWindow":{
-        "x":512,
+        "x":576,
         "y":0,
         "width":512,
         "height":512
     },
     "spritesheetWindow":{
-        "x":0,
+        "x":64,
         "y":0,
         "width":512,
         "height":512
     },
     "toolWindow":{
-        "x":1024,
+        "x":0,
         "y":0,
         "width":64,
-        "height":512
+        "height":640
     },
     "colourWindow":{
         "x":1088,
@@ -82,7 +82,8 @@
         "padding":{
             "x":16,
             "y":16
-        }
+        },
+        "indicatorColour":[0.2,1.0,0.2,1.0]
     },
     "transparentBg":{
         "colour1":[0.3,0.3,0.3,1.0],
@@ -91,6 +92,16 @@
         "scale":64
     },
     "buttons":[
+        {
+            "text":"Brush",
+            "icon":"assets/brushicon.png",
+            "hoverColour":[1.0,1.0,0,1]
+        },
+        {
+            "text":"Fill",
+            "icon":"assets/fillicon.png",
+            "hoverColour":[1.0,0.75,0.5,1]
+        },
         {
             "text":"Copy",
             "icon":"assets/copyicon.png",
@@ -112,9 +123,24 @@
             "hoverColour":[1.0,0,0,1]
         },
         {            
+            "text":"Minus",
+            "icon":"assets/minusicon.png",
+            "hoverColour":[1.0,0.25,0.25,1]
+        },
+        {            
+            "text":"Plus",
+            "icon":"assets/plusicon.png",
+            "hoverColour":[1.0,0.25,0.25,1]
+        },
+        {           
             "text":"Save",
             "icon":"assets/saveicon.png",
             "hoverColour":[1.0,0.75,0,1]
-        }        
+        },
+        {            
+            "text":"Exit",
+            "icon":"assets/exiticon.png",
+            "hoverColour":[1.0,0.25,0.25,1]
+        }
     ]
 }

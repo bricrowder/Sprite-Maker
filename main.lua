@@ -1,9 +1,9 @@
 --[[]
-tools: brush (b), eraser (e) (100% transparent), zoom slider (-,+, mouse wheel?), save, quit
+Paste
 
-paste
+Fill
 
-drop brush
+windows!
 
 ]]
 
@@ -11,7 +11,7 @@ drop brush
 json = require "dkjson"
 
 function love.load()
-    -- setup graphics options
+    -- setup graphics options - pixelated look when it is "zoomed in" on
     love.graphics.setDefaultFilter("nearest", "nearest")
     -- Load the config
     config = json.opendecode("config/config.json")
@@ -32,9 +32,13 @@ function love.load()
     MOUSE = false
     CTRL = false
 
+    -- painting mode - 1=brush, 2=fill
+    paintMode = 1
+
     -- load pixel data
     pixels = json.opendecode(config.spritesheet.pixelData)
 
+    -- create pixel data if there isn't any
     if not pixels then
         pixels = {}
         for i=1, config.spritesheetWindow.width do
@@ -52,21 +56,21 @@ function love.load()
         fin = {gx=1, gy=1}
     }
 
-    -- load button textures and pre-determine positions based on padding
+    -- load button textures and pre-determine positions based on padding (local coords to window)
     for i, v in ipairs(config.buttons) do
         v.texture = love.graphics.newImage(v.icon)
 
         v.pos = {
             -- vertical alignment for x
             x = config.buttonConfig.padding.x,
-            y = (i-1)*v.texture:getHeight() + config.buttonConfig.padding.y*i*2,
+            y = (i-1)*v.texture:getHeight() + config.buttonConfig.padding.y*(i-1)*2+ config.buttonConfig.padding.y,
             w = v.texture:getWidth(),
             h = v.texture:getHeight()
         }
         v.hover = false
     end
 
-    -- init colour window buttons
+    -- init colour window buttons (local coords to window)
     for i, v in ipairs(config.palette) do
         -- set x pos 8 and 8
         local x = 0
@@ -101,10 +105,10 @@ function love.load()
         end
     end
 
-    -- init
-    colour = 3  -- 
+    -- colour, init to first palette entry
+    colour = 1
 
-    -- spritesheet position, min and max pos
+    -- spritesheet canvas position, min and max pos
     sx = 0
     sy = 0
     sxMin = -config.spritesheetWindow.width * config.pixelScale.spritesheetWindow + config.spritesheetWindow.width
@@ -136,6 +140,27 @@ function love.load()
     end
     love.graphics.setCanvas()
 
+    -- transparent colour button (use grid instead of colour)
+    transColour = love.graphics.newCanvas(config.buttonConfig.size, config.buttonConfig.size)
+    love.graphics.setCanvas(transColour)
+    for i=1, 2 do
+        for j=1, 2 do
+            if i%2==0 and j%2==0 then
+                love.graphics.setColor(config.transparentBg.colour1)
+            elseif  i%2==0 and j%2==1 then
+                love.graphics.setColor(config.transparentBg.colour2)
+            elseif  i%2==1 and j%2==0 then
+                love.graphics.setColor(config.transparentBg.colour2)
+            elseif  i%2==1 and j%2==1 then
+                love.graphics.setColor(config.transparentBg.colour1)
+            end
+            love.graphics.rectangle("fill",(i-1)*transColour:getWidth()/2,(j-1)*transColour:getHeight()/2,transColour:getWidth()/2,transColour:getHeight()/2)
+        end
+    end
+    love.graphics.setCanvas()
+
+    -- + and - zoom buttons
+
     -- drawWindow grid
     drawGridCanvas = love.graphics.newCanvas(config.drawWindow.width,config.drawWindow.height)
     love.graphics.setCanvas(drawGridCanvas)
@@ -165,40 +190,6 @@ function love.load()
 
     love.graphics.setCanvas()
     love.graphics.setColor(1,1,1,1)
-
-    -- make spritesheet grid canvas, size of max scale
-    ssGridCanvas = love.graphics.newCanvas(config.spritesheetWindow.width * config.pixelScale.spritesheetWindowMax, config.spritesheetWindow.height * config.pixelScale.spritesheetWindowMax)
-
-    
-
-    -- this part just isnt done and probably will make the program stop
-
-    -- for i=config.pixelScale.spritesheetWindow, config.pixelScale.spritesheetWindowMax do
-    --     -- make canvas
-    --     ssGridCanvas[i] = {config.spritesheetWindow.width * i, config.spritesheetWindow.height * i}
-    --     love.graphics.setCanvas(ssGridCanvas[i])
-
-    --     local cellSize = config.pixelScale.pixelsPerSprite * i
-
-    --     for j=1, config.spritesheetWindow.width / config.pixelScale.pixelsPerSprite * i do
-    --         local x1 = (j-1) * cellSize
-    --         local y1 = 0
-    --         local x2 = (j-1) * cellSize
-    --         local y2 = ssGridCanvas[i]:getHeight()
-    --         love.graphics.line(x1,y1,x2,y2)
-    --     end
-    
-    --     -- left to right
-    --     for j=1, config.pixelScale.pixelsPerSprite do
-    --         local x1 = 0
-    --         local y1 = (j-1) * cellSize
-    --         local x2 = ssGridCanvas[i]:getWidth()
-    --         local y2 = (j-1) * cellSize
-    --         love.graphics.line(x1,y1,x2,y2)
-    --     end
-    
-    --     love.graphics.setCanvas()
-    -- end
 
     -- set first draw window as 1,1
     getPixels(1, 1)
@@ -237,8 +228,12 @@ function love.update(dt)
         local dx, dy = getGrid(window, mx, my)
         -- colour the pixel with the current colour
         if love.mouse.isDown(1, 2) then
-            setPixel(dx, dy, colour)
-            MOUSE = true
+            if paintMode==1 then
+                setPixel(dx, dy, colour)
+                MOUSE = true
+            elseif paintMode==2 then
+
+            end
         end        
     elseif window == "colourWindow" then
         -- capture if the mouse is hoving over a colour 
@@ -257,13 +252,13 @@ function love.update(dt)
         local twy = my - config.toolWindow.y
         
         for i, v in ipairs(config.buttons) do
+            -- only check tool buttons
             v.hover = false
             if twx >= v.pos.x and twx <= v.pos.x+v.pos.w and twy >= v.pos.y and twy <= v.pos.y+v.pos.h then
                 v.hover = true
             end
         end
-    
-    end
+   end
 
     -- bake changes
     bakePixels()
@@ -322,6 +317,49 @@ function love.mousepressed(x, y, button, isTouch, presses)
                 colour = i
             end
         end
+    elseif window == "toolWindow" then
+        local but = nil
+        for i, v in ipairs(config.buttons) do
+            -- hover was checked just before this, was it clided on too?
+            if v.hover then
+                -- set the colour
+                but = i
+            end
+        end
+
+        if but then
+            if but==1 then
+                -- brush
+                paintMode = 1
+            elseif but==2 then
+                -- fill
+                paintMode = 2
+            elseif but==3 then
+                -- copy
+                copySelectedPixels()
+            elseif but==4 then
+                -- cut
+                cutSelectedPixels()                
+            elseif but==5 then
+                -- paste
+                pasteCopiedPixels()
+            elseif but==6 then
+                -- delete
+                deleteSelectedPixels()                
+            elseif but==7 then
+                -- zoom -
+                zoom("left")
+            elseif but==8 then
+                -- zoom +
+                zoom("right")
+            elseif but==9 then
+                -- save
+                writeImage()
+            elseif but==10 then
+                -- exit
+                love.event.quit()
+            end
+        end
     end
 end
 
@@ -345,22 +383,23 @@ function love.keyreleased(key)
     if key=="s" then
         writeImage()
     end
-    if key=="right" then
-        if config.pixelScale.spritesheetWindow < config.pixelScale.spritesheetWindowMax  then
-            config.pixelScale.spritesheetWindow = config.pixelScale.spritesheetWindow * 2
-            sxMin = -config.spritesheetWindow.width * config.pixelScale.spritesheetWindow + config.spritesheetWindow.width
-            syMin = -config.spritesheetWindow.height * config.pixelScale.spritesheetWindow + config.spritesheetWindow.height
-            print(sxMin .. "," .. syMin)
-        end
+    if key=="right" or key=="left" then
+        zoom(key)
+        -- if config.pixelScale.spritesheetWindow < config.pixelScale.spritesheetWindowMax  then
+        --     config.pixelScale.spritesheetWindow = config.pixelScale.spritesheetWindow * 2
+        --     sxMin = -config.spritesheetWindow.width * config.pixelScale.spritesheetWindow + config.spritesheetWindow.width
+        --     syMin = -config.spritesheetWindow.height * config.pixelScale.spritesheetWindow + config.spritesheetWindow.height
+        --     print(sxMin .. "," .. syMin)
+        -- end
     end
-    if key=="left" then
-        if config.pixelScale.spritesheetWindow > 1 then
-            config.pixelScale.spritesheetWindow = config.pixelScale.spritesheetWindow / 2
-            sxMin = -config.spritesheetWindow.width * config.pixelScale.spritesheetWindow + config.spritesheetWindow.width
-            syMin = -config.spritesheetWindow.height * config.pixelScale.spritesheetWindow + config.spritesheetWindow.height
-            print(sxMin .. "," .. syMin)
-        end
-    end
+    -- if key=="left" then
+    --     if config.pixelScale.spritesheetWindow > 1 then
+    --         config.pixelScale.spritesheetWindow = config.pixelScale.spritesheetWindow / 2
+    --         sxMin = -config.spritesheetWindow.width * config.pixelScale.spritesheetWindow + config.spritesheetWindow.width
+    --         syMin = -config.spritesheetWindow.height * config.pixelScale.spritesheetWindow + config.spritesheetWindow.height
+    --         print(sxMin .. "," .. syMin)
+    --     end
+    -- end
     if (key=="c" or key=="C") and CTRL then
         copySelectedPixels()
     end
@@ -386,13 +425,19 @@ function love.draw()
     love.graphics.draw(transbg, config.spritesheetWindow.x, config.spritesheetWindow.y)
     love.graphics.draw(transbg, config.drawWindow.x, config.drawWindow.y)
 
-    -- draw spritesheet window
+    love.graphics.setColor(0.05,0.05,0.1,1.0)
+    love.graphics.rectangle("fill",config.toolWindow.x, config.toolWindow.y, config.toolWindow.width, config.toolWindow.height)
+    love.graphics.rectangle("fill",config.statusWindow.x, config.statusWindow.y, config.statusWindow.width, config.statusWindow.height)
+    love.graphics.rectangle("fill",config.colourWindow.x, config.colourWindow.y, config.colourWindow.width, config.colourWindow.height)
+    love.graphics.setColor(1,1,1,1)
+
+    -- draw spritesheet window. limit to the spritesheet window location/size with a stencil
     love.graphics.stencil(spritesheetWindowStencil, "replace", 1)
     love.graphics.setStencilTest("greater", 0)
     love.graphics.draw(ssCanvas, config.spritesheetWindow.x + sx, config.spritesheetWindow.y + sy)
     love.graphics.setStencilTest()
 
-    -- draw window
+    -- draw draw window
     drawDrawWindow()
     if drawGrid then
         love.graphics.draw(drawGridCanvas, config.drawWindow.x, config.drawWindow.y)
@@ -402,18 +447,18 @@ function love.draw()
     drawToolWindow()
     drawColourWindow()
 
+    love.graphics.setColor(0.05,0.05,0.1,1.0)
     -- window borders
     love.graphics.rectangle("line",config.drawWindow.x, config.drawWindow.y, config.drawWindow.width, config.drawWindow.height)
     love.graphics.rectangle("line",config.spritesheetWindow.x, config.spritesheetWindow.y, config.spritesheetWindow.width, config.spritesheetWindow.height)
-    love.graphics.rectangle("line",config.toolWindow.x, config.toolWindow.y, config.toolWindow.width, config.toolWindow.height)
-    love.graphics.rectangle("line",config.statusWindow.x, config.statusWindow.y, config.statusWindow.width, config.statusWindow.height)
-    love.graphics.rectangle("line",config.colourWindow.x, config.colourWindow.y, config.colourWindow.width, config.colourWindow.height)
+
+    love.graphics.setColor(1,1,1,1)
 
     -- various status text
     love.graphics.print(statusText,config.statusWindow.x, config.statusWindow.y)
     love.graphics.print("Selection (Grid): " .. ssSelection.start.gx .. "," .. ssSelection.start.gy .. " - " .. ssSelection.fin.gx .. "," .. ssSelection.fin.gy, config.statusWindow.x + 300, config.statusWindow.y)
     local x, y, w, h = getSelectionRect()
-    love.graphics.print("Selection: " .. x .. "," .. y .. " - " .. w .. "," .. h, config.statusWindow.x + 300, config.statusWindow.y + 15)
+    love.graphics.print("Selection (Pixels): " .. x .. "," .. y .. " - " .. w .. "," .. h, config.statusWindow.x + 300, config.statusWindow.y + 15)
     love.graphics.print("Spritesheet offset: " .. sx .. "," .. sy, config.statusWindow.x + 300, config.statusWindow.y + 30)
     
 end
@@ -486,29 +531,6 @@ function getSelectionRect()
     return x, y, w, h
 end
 
-function drawSpritesheetGrid()
-    -- going with a square cell, same width & height
-    local cellSize = config.pixelScale.pixelsPerSprite * config.pixelScale.spritesheetWindow
-
-    for i=1, config.spritesheetWindow.width / config.pixelScale.pixelsPerSprite do
-        local x1 = (i-1) * cellSize
-        local y1 = 0
-        local x2 = (i-1) * cellSize
-        local y2 = config.spritesheetWindow.height * config.pixelScale.spritesheetWindow
-        love.graphics.line(x1,y1,x2,y2)
-    end
-
-    -- left to right
-    for i=1, config.spritesheetWindow.height / config.pixelScale.pixelsPerSprite do
-        local x1 = 0
-        local y1 = (i-1) * cellSize
-        local x2 = config.spritesheetWindow.width * config.pixelScale.spritesheetWindow
-        local y2 = (i-1) * cellSize
-        love.graphics.line(x1,y1,x2,y2)
-    end
-end
-
-
 -- sets the pixel on the draw grid and pixel grid
 function setPixel(dx, dy, c)
     -- draw window
@@ -519,6 +541,7 @@ function setPixel(dx, dy, c)
     pixels[sx][sy] = c
 end
 
+-- get pixels from the spritesheet and loads into the draw window
 function getPixels(gx, gy)
     local iStart = (gx-1) * config.pixelScale.pixelsPerSprite+1
     local jStart = (gy-1) * config.pixelScale.pixelsPerSprite+1
@@ -528,7 +551,6 @@ function getPixels(gx, gy)
     local di = 1
     local dj = 1
 
-    -- print(iStart .. "," .. jStart .. " - " .. iEnd .. "," .. jEnd)
     for i=iStart, iEnd do
         for j=jStart, jEnd do
             drawPixels[di][dj] = pixels[i][j]
@@ -539,6 +561,7 @@ function getPixels(gx, gy)
     end
 end
 
+-- copies the selected pixels and put them in a seperate variable
 function copySelectedPixels()
     local x, y, w, h = getSelectionRect()
     w = w + x
@@ -557,14 +580,15 @@ function copySelectedPixels()
         end
         ci = ci + 1
     end
-    print("x: " .. x .. "\ny: " .. y .. "\nw: " .. w .. "\nh: " .. h)
     print("Copied " .. #copyPixels .. " x " .. #copyPixels[1])
+    print("x: " .. x .. "\ny: " .. y .. "\nw: " .. w .. "\nh: " .. h)
 end
 
 function pasteCopiedPixels()
 
 end
 
+-- deletes the selected pixels, turns the colour to 1 from the palette
 function deleteSelectedPixels()
     -- get indices of selection
     local x, y, w, h = getSelectionRect()
@@ -579,13 +603,38 @@ function deleteSelectedPixels()
     end
     -- update the draw window
     getPixels(ssSelection.start.gx, ssSelection.start.gy)
+    print("Deleted " .. w-x .. " x " .. h-y)
+    print("x: " .. x .. "\ny: " .. y .. "\nw: " .. w .. "\nh: " .. h)
 end
 
+-- combination of copy and delete
 function cutSelectedPixels()
+    print("-- Cutting -- ")
     copySelectedPixels()
     deleteSelectedPixels()
 end
 
+function zoom(key)
+    if key=="right" then
+        if config.pixelScale.spritesheetWindow < config.pixelScale.spritesheetWindowMax  then
+            config.pixelScale.spritesheetWindow = config.pixelScale.spritesheetWindow * 2
+            sxMin = -config.spritesheetWindow.width * config.pixelScale.spritesheetWindow + config.spritesheetWindow.width
+            syMin = -config.spritesheetWindow.height * config.pixelScale.spritesheetWindow + config.spritesheetWindow.height
+            print(sxMin .. "," .. syMin)
+        end
+    end
+    if key=="left" then
+        if config.pixelScale.spritesheetWindow > 1 then
+            config.pixelScale.spritesheetWindow = config.pixelScale.spritesheetWindow / 2
+            sxMin = -config.spritesheetWindow.width * config.pixelScale.spritesheetWindow + config.spritesheetWindow.width
+            syMin = -config.spritesheetWindow.height * config.pixelScale.spritesheetWindow + config.spritesheetWindow.height
+            print(sxMin .. "," .. syMin)
+        end
+    end
+end
+
+
+-- "bakes" the pixel array to a canvas, also handles the grid
 function bakePixels()
     -- scale of 1
     love.graphics.setCanvas(ssCanvasBake)
@@ -593,10 +642,8 @@ function bakePixels()
 
     for i=1, #pixels do
         for j=1, #pixels[i] do
-            -- if pixels[i][j] > 1 then
-                love.graphics.setColor(config.palette[pixels[i][j]].colour)
-                love.graphics.rectangle("fill", i-1, j-1, 1, 1)
-            -- end
+            love.graphics.setColor(config.palette[pixels[i][j]].colour)
+            love.graphics.rectangle("fill", i-1, j-1, 1, 1)
         end
     end
 
@@ -607,25 +654,27 @@ function bakePixels()
     love.graphics.clear()
     love.graphics.draw(ssCanvasBake, 0, 0, 0, config.pixelScale.spritesheetWindow)
 
-    -- draw the grid here
-    local cellSize = config.pixelScale.pixelsPerSprite * config.pixelScale.spritesheetWindow
-    love.graphics.setColor(config.gridColour.spritesheetWindow)
+    if sheetGrid then
+        -- draw the grid here
+        local cellSize = config.pixelScale.pixelsPerSprite * config.pixelScale.spritesheetWindow
+        love.graphics.setColor(config.gridColour.spritesheetWindow)
 
-    for i=1, config.spritesheetWindow.width / config.pixelScale.pixelsPerSprite do
-        local x1 = (i-1) * cellSize
-        local y1 = 0
-        local x2 = (i-1) * cellSize
-        local y2 = config.spritesheetWindow.height * config.pixelScale.spritesheetWindow
-        love.graphics.line(x1,y1,x2,y2)
-    end
+        for i=1, config.spritesheetWindow.width / config.pixelScale.pixelsPerSprite do
+            local x1 = (i-1) * cellSize
+            local y1 = 0
+            local x2 = (i-1) * cellSize
+            local y2 = config.spritesheetWindow.height * config.pixelScale.spritesheetWindow
+            love.graphics.line(x1,y1,x2,y2)
+        end
 
-    -- left to right
-    for i=1, config.spritesheetWindow.height / config.pixelScale.pixelsPerSprite do
-        local x1 = 0
-        local y1 = (i-1) * cellSize
-        local x2 = config.spritesheetWindow.width * config.pixelScale.spritesheetWindow
-        local y2 = (i-1) * cellSize
-        love.graphics.line(x1,y1,x2,y2)
+        -- left to right
+        for i=1, config.spritesheetWindow.height / config.pixelScale.pixelsPerSprite do
+            local x1 = 0
+            local y1 = (i-1) * cellSize
+            local x2 = config.spritesheetWindow.width * config.pixelScale.spritesheetWindow
+            local y2 = (i-1) * cellSize
+            love.graphics.line(x1,y1,x2,y2)
+        end
     end
 
     love.graphics.setColor(1,1,1,1) 
@@ -669,7 +718,9 @@ function drawToolWindow()
             love.graphics.rectangle("line",config.toolWindow.x + v.pos.x, config.toolWindow.y + v.pos.y, v.pos.w, v.pos.h)
         end
     end
-    love.graphics.setColor(1,1,1,1)
+    love.graphics.setColor(config.buttonConfig.indicatorColour)
+    -- draw paintmode indicatorColour
+    love.graphics.circle("fill", config.toolWindow.x + config.toolWindow.width - (config.toolWindow.width * 0.2), config.toolWindow.y + (config.toolWindow.width * 0.2) + ((paintMode-1) * 64), 4)
 end
 
 function drawColourWindow()
@@ -682,9 +733,14 @@ function drawColourWindow()
         love.graphics.setColor(v.colour)
         love.graphics.rectangle("fill", config.colourWindow.x + v.pos.x, config.colourWindow.y + v.pos.y, v.pos.w, v.pos.h)
         if i==1 or i==3 then  -- crude way to make this line for transparent and white
+            if i==1 then  -- crude way to get the transparent background in
+                love.graphics.setColor(1,1,1,1)
+                love.graphics.draw(transColour, config.colourWindow.x + v.pos.x, config.colourWindow.y + v.pos.y)
+            end
             love.graphics.setColor(0,0,0,1)
             love.graphics.rectangle("line", config.colourWindow.x + v.pos.x, config.colourWindow.y + v.pos.y, v.pos.w, v.pos.h)
         end
+
     end
 end
 
